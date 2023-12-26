@@ -1,10 +1,10 @@
-const { hashPassword } = require('./utils');
+const { hashPassword, genSalt, genSaltSync } = require('./utils');
 
 class RegistrationModule {
     constructor(storage) {
         this.storage = storage;
         this.middleware = [];
-        this.routes = []; 
+        this.routes = [];
     }
 
     use(middleware) {
@@ -23,6 +23,8 @@ class RegistrationModule {
                 res.status(500).json({ error: 'Internal Server Error' });
             }
         };
+        // Register the combined handler for the POST route
+        // this.server.post(route, combinedHandler);
         this.routes.push({ method: 'post', path: route, handler: combinedHandler });
     }
 
@@ -43,44 +45,57 @@ class RegistrationModule {
         });
     }
 
-    registerUser(userData, callback) {
+    async registerUser(req, res) {
+        const userData = req.body;
         const { username, email, password, ...additionalFields } = userData;
 
         if (!username || !password || !email) {
-            return callback(new Error('Username, email, and password are required fields.'));
+            return res.status(400).json({ error: 'Username, email, and password are required fields.' });
         }
 
         const usernameValidationError = !this.validateUsername(username);
         if (usernameValidationError) {
-            return callback(usernameValidationError);
+            return res.status(400).json({ error: usernameValidationError.message || 'Invalid username.' });
         }
 
         const emailValidationError = !this.validateEmail(email);
         if (emailValidationError) {
-            return callback(emailValidationError);
+            return res.status(400).json({ error: emailValidationError.message || 'Invalid email.' });
         }
 
         const passwordValidationError = !this.validatePassword(password);
         if (passwordValidationError) {
-            return callback(passwordValidationError);
+            return res.status(400).json({ error: passwordValidationError.message || 'Invalid password.' });
         }
+
         const additionalFieldsValidationError = this.validateAdditionalFields(additionalFields);
         if (additionalFieldsValidationError) {
-            return callback(additionalFieldsValidationError);
+            return res.status(400).json({ error: additionalFieldsValidationError.message || 'Invalid additional fields.' });
         }
 
-        const hashedPassword = hashPassword(password);
+        try {
+            const salt = process.env.USE_ASYNC ? await genSalt() : genSaltSync();
+            const hashedPassword = process.env.USE_ASYNC
+                ? await hashPassword(password, salt)
+                : hashPassword(password, salt);
 
-        const newUser = { username, email, password: hashedPassword, ...additionalFields };
-        this.storage.save(newUser, (err) => {
-            if (err) {
-                console.error('Error saving data:', err);
-                callback(err);
-            } else {
-                console.log(newUser, 'newUser');
-                callback(null, newUser);
-            }
-        });
+            const newUser = { username, email, password: await hashedPassword, ...additionalFields };
+            this.storage.save(newUser, (err) => {
+                if (err) {
+                    console.error('Error saving data:', err);
+                    res.status(500).json({ error: 'Internal Server Error' });
+                } else {
+                    console.log(newUser, 'newUser');
+                    res.status(200).json({
+                        message: 'Registration successful',
+                        user: newUser,
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('Error during registration:', error);
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
     }
 
     validateAdditionalFields(additionalFields) {
