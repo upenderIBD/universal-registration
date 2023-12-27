@@ -1,10 +1,20 @@
 const { hashPassword, genSalt, genSaltSync } = require('./utils');
+const bodyParser = require('body-parser');
+const InMemoryStorage = require('./inMemoryStorage');
 
 class RegistrationModule {
     constructor(storage) {
         this.storage = storage;
         this.middleware = [];
         this.routes = [];
+        this.use(bodyParser.json());
+        this.use(bodyParser.urlencoded({ extended: true }));
+
+        this.post('/register', async (req, res) => {
+            const result = await this.registerUser(req, res);
+            console.log("result", result);
+            return result;
+        });
     }
 
     use(middleware) {
@@ -23,8 +33,6 @@ class RegistrationModule {
                 res.status(500).json({ error: 'Internal Server Error' });
             }
         };
-        // Register the combined handler for the POST route
-        // this.server.post(route, combinedHandler);
         this.routes.push({ method: 'post', path: route, handler: combinedHandler });
     }
 
@@ -80,22 +88,25 @@ class RegistrationModule {
                 : hashPassword(password, salt);
 
             const newUser = { username, email, password: await hashedPassword, ...additionalFields };
-            this.storage.save(newUser, (err) => {
-                if (err) {
-                    console.error('Error saving data:', err);
-                    res.status(500).json({ error: 'Internal Server Error' });
-                } else {
-                    console.log(newUser, 'newUser');
-                    res.status(200).json({
-                        message: 'Registration successful',
-                        user: newUser,
-                    });
-                }
+            return new Promise((resolve, reject) => {
+                this.storage.save(newUser, (err) => {
+                    if (err) {
+                        console.error('Error saving data:', err);
+                        reject({ error: 'Internal Server Error' });
+                    } else {
+                        const result = {
+                            message: 'Registration successful',
+                            user: newUser,
+                        };
+                        resolve(result);
+                    }
+                });
             });
         } catch (error) {
             console.error('Error during registration:', error);
             res.status(500).json({ error: 'Internal Server Error' });
         }
+
     }
 
     validateAdditionalFields(additionalFields) {
@@ -178,4 +189,7 @@ class RegistrationModule {
     }
 }
 
-module.exports = RegistrationModule;
+const inMemoryStorage = new InMemoryStorage();
+const registrationModule = new RegistrationModule(inMemoryStorage);
+
+module.exports = registrationModule;
