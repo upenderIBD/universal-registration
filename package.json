@@ -1,6 +1,6 @@
 {
   "name": "universal-registration",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The universal-registration npm package provides a versatile and easy-to-use common registration module for web applications. Seamlessly integrate user registration functionality into your projects with a focus on simplicity and flexibility.",
   "main": "app.js",
   "scripts": {
