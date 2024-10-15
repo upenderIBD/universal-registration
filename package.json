@@ -12,7 +12,7 @@
     "url": "https://github.com/upenderIBD/universal-registration.git"
   },
   "engines": {
-    "node": "^18.17.1"
+    "node": ">=18.17.1"
   },
   "keywords": [
     "registration",
